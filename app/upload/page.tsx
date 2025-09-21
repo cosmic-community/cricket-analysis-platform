@@ -1,309 +1,225 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Upload, Play, User, Calendar, FileVideo, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
+import { Upload, FileVideo, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 
-interface UploadFormData {
-  videoTitle: string
-  playerName: string
-  matchDate: string
+const shotTypes = ['Drive', 'Cut', 'Pull', 'Hook', 'Sweep', 'Flick', 'Defensive Shot'] as const
+const matchTypes = ['Test Match', 'One Day International', 'T20', 'Practice Session', 'Domestic Match'] as const
+
+type ShotType = typeof shotTypes[number]
+type MatchType = typeof matchTypes[number]
+
+interface UploadData {
+  title: string
+  videoFile: File | null
+  shotType: ShotType
+  matchType: MatchType
   teams: string
-  matchType: string
-  videoNotes: string
+  notes: string
 }
 
-interface AnalysisResult {
-  analysisId: string
-  shotType: string
-  analysisScore: number
-  ballSpeed: number
-  batAngle: number
-  recommendations: string
-}
-
-export default function VideoUploadPage() {
-  const router = useRouter()
-  const [isUploading, setIsUploading] = useState(false)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [uploadComplete, setUploadComplete] = useState(false)
-  const [analysisComplete, setAnalysisComplete] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string>('')
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
-  const [formData, setFormData] = useState<UploadFormData>({
-    videoTitle: '',
-    playerName: '',
-    matchDate: '',
-    teams: '',
+export default function UploadPage() {
+  const [uploadData, setUploadData] = useState<UploadData>({
+    title: '',
+    videoFile: null,
+    shotType: 'Drive',
     matchType: 'Practice Session',
-    videoNotes: ''
+    teams: '',
+    notes: ''
   })
+  
+  const [uploading, setUploading] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [dragActive, setDragActive] = useState(false)
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    
+    const files = Array.from(e.dataTransfer.files)
+    const videoFile = files.find(file => file.type.startsWith('video/'))
+    
+    if (videoFile) {
+      setUploadData(prev => ({ ...prev, videoFile }))
+      if (!uploadData.title) {
+        setUploadData(prev => ({ ...prev, title: videoFile.name.replace(/\.[^/.]+$/, '') }))
+      }
+    }
+  }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setSelectedFile(file)
-      const url = URL.createObjectURL(file)
-      setPreviewUrl(url)
+    if (file && file.type.startsWith('video/')) {
+      setUploadData(prev => ({ ...prev, videoFile: file }))
+      if (!uploadData.title) {
+        setUploadData(prev => ({ ...prev, title: file.name.replace(/\.[^/.]+$/, '') }))
+      }
     }
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
-  }
-
-  const simulateVideoAnalysis = async (): Promise<AnalysisResult> => {
-    // Simulate AI analysis with realistic cricket metrics
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    
-    const shotTypes = ['Drive', 'Cut', 'Pull', 'Hook', 'Sweep', 'Flick']
+  const generateSampleData = () => {
+    // Fixed: Ensure array access returns defined values with proper fallbacks
     const randomShotType = shotTypes[Math.floor(Math.random() * shotTypes.length)]
-    const analysisScore = Number((Math.random() * 3 + 7).toFixed(1)) // Score between 7-10
-    const ballSpeed = Math.floor(Math.random() * 40 + 120) // 120-160 km/h
-    const batAngle = Math.floor(Math.random() * 30 + 30) // 30-60 degrees
+    const randomMatchType = matchTypes[Math.floor(Math.random() * matchTypes.length)]
     
-    return {
-      analysisId: `analysis_${Date.now()}`,
-      shotType: randomShotType,
-      analysisScore,
-      ballSpeed,
-      batAngle,
-      recommendations: `<p><strong>Excellent ${randomShotType.toLowerCase()} technique!</strong> Your shot shows good fundamentals with proper footwork and bat positioning.</p><ul><li><strong>Strengths:</strong> Clean swing through the line, good head position, complete follow-through</li><li><strong>Areas for improvement:</strong> Consider getting your front foot slightly closer to the pitch of the ball for even better control</li><li><strong>Practice focus:</strong> Work on maintaining this technique against faster bowling</li></ul>`
-    }
+    // Additional safety check to ensure values are defined
+    const safeShotType = randomShotType || 'Drive'
+    const safeMatchType = randomMatchType || 'Practice Session'
+    
+    setUploadData(prev => ({
+      ...prev,
+      title: `Sample Analysis - ${safeShotType} Practice`,
+      shotType: safeShotType,
+      matchType: safeMatchType,
+      teams: 'Practice Session',
+      notes: `Sample ${safeShotType.toLowerCase()} analysis with focus on technique and timing.`
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!selectedFile) {
-      alert('Please select a video file')
+    if (!uploadData.videoFile) {
+      setUploadStatus('error')
       return
     }
 
+    setUploading(true)
+    setUploadStatus('idle')
+
     try {
-      setIsUploading(true)
+      // Simulate upload process
+      await new Promise(resolve => setTimeout(resolve, 3000))
       
-      // Simulate video upload
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      setUploadComplete(true)
-      setIsUploading(false)
+      // Here you would integrate with your actual upload service
+      // For now, we'll just simulate success
+      setUploadStatus('success')
       
-      // Start analysis
-      setIsAnalyzing(true)
-      const result = await simulateVideoAnalysis()
-      setAnalysisResult(result)
-      setIsAnalyzing(false)
-      setAnalysisComplete(true)
+      // Reset form after successful upload
+      setTimeout(() => {
+        setUploadData({
+          title: '',
+          videoFile: null,
+          shotType: 'Drive',
+          matchType: 'Practice Session',
+          teams: '',
+          notes: ''
+        })
+        setUploadStatus('idle')
+      }, 2000)
       
     } catch (error) {
-      console.error('Upload failed:', error)
-      setIsUploading(false)
-      setIsAnalyzing(false)
-      alert('Upload failed. Please try again.')
+      setUploadStatus('error')
+    } finally {
+      setUploading(false)
     }
   }
 
-  const handleViewAnalysis = () => {
-    // In a real app, this would navigate to the actual analysis
-    router.push('/analyses')
-  }
-
-  if (analysisComplete && analysisResult) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center mb-8">
-          <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Analysis Complete!</h1>
-          <p className="text-gray-600">Your video has been analyzed and performance metrics have been generated.</p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Analysis Results */}
-          <div className="cricket-card p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Shot Analysis Results</h2>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between py-3 border-b">
-                <span className="text-gray-600">Shot Type:</span>
-                <span className="font-semibold text-primary-600">{analysisResult.shotType}</span>
-              </div>
-              
-              <div className="flex items-center justify-between py-3 border-b">
-                <span className="text-gray-600">Analysis Score:</span>
-                <div className="flex items-center space-x-2">
-                  <span className="text-2xl font-bold text-green-600">{analysisResult.analysisScore}</span>
-                  <span className="text-gray-500">/10</span>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between py-3 border-b">
-                <span className="text-gray-600">Ball Speed:</span>
-                <span className="font-semibold">{analysisResult.ballSpeed} km/h</span>
-              </div>
-              
-              <div className="flex items-center justify-between py-3 border-b">
-                <span className="text-gray-600">Bat Angle:</span>
-                <span className="font-semibold">{analysisResult.batAngle}°</span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Recommendations:</h3>
-              <div 
-                className="prose prose-sm max-w-none text-gray-700"
-                dangerouslySetInnerHTML={{ __html: analysisResult.recommendations }}
-              />
-            </div>
-          </div>
-
-          {/* Video Preview */}
-          <div className="cricket-card p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Uploaded Video</h2>
-            
-            <div className="relative rounded-lg overflow-hidden bg-gray-100 mb-4">
-              <video 
-                src={previewUrl}
-                className="w-full h-64 object-cover"
-                controls
-              />
-            </div>
-            
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Title:</span>
-                <span className="font-medium">{formData.videoTitle}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Player:</span>
-                <span className="font-medium">{formData.playerName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Date:</span>
-                <span className="font-medium">{formData.matchDate}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Type:</span>
-                <span className="font-medium">{formData.matchType}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-center space-x-4 mt-8">
-          <button
-            onClick={() => window.location.reload()}
-            className="px-6 py-3 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            Upload Another Video
-          </button>
-          <button
-            onClick={handleViewAnalysis}
-            className="px-6 py-3 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-          >
-            View All Analyses
-          </button>
-        </div>
-      </div>
-    )
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Video for Analysis</h1>
-        <p className="text-gray-600">Upload your cricket video to get detailed technical analysis and performance insights.</p>
+        <p className="text-gray-600">Upload match or practice videos for detailed cricket shot analysis</p>
       </div>
-
-      {(isUploading || isAnalyzing) && (
-        <div className="cricket-card p-8 text-center mb-8">
-          <Loader2 className="w-12 h-12 text-primary-600 mx-auto mb-4 animate-spin" />
-          {isUploading && (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Uploading Video...</h3>
-              <p className="text-gray-600">Please wait while your video is being uploaded.</p>
-            </div>
-          )}
-          {isAnalyzing && (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Analyzing Performance...</h3>
-              <p className="text-gray-600">Our AI is analyzing your batting technique and generating insights.</p>
-              <div className="mt-4 space-y-2 text-sm text-gray-500">
-                <p>• Analyzing ball trajectory and impact zone</p>
-                <p>• Evaluating footwork and body positioning</p>
-                <p>• Measuring bat speed and angle</p>
-                <p>• Generating personalized recommendations</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Video Upload Section */}
         <div className="cricket-card p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-            <FileVideo className="w-5 h-5 mr-2 text-primary-600" />
-            Video Upload
-          </h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Video Upload</h2>
           
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-            {!selectedFile ? (
-              <div>
-                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <div className="text-lg font-medium text-gray-900 mb-2">
-                  Choose a video file
+          <div
+            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+              dragActive 
+                ? 'border-primary-500 bg-primary-50' 
+                : uploadData.videoFile
+                  ? 'border-green-300 bg-green-50'
+                  : 'border-gray-300 hover:border-gray-400'
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            {uploadData.videoFile ? (
+              <div className="space-y-4">
+                <CheckCircle className="w-16 h-16 text-green-600 mx-auto" />
+                <div>
+                  <p className="text-lg font-medium text-gray-900">{uploadData.videoFile.name}</p>
+                  <p className="text-sm text-gray-600">
+                    {formatFileSize(uploadData.videoFile.size)} • {uploadData.videoFile.type}
+                  </p>
                 </div>
-                <p className="text-gray-600 mb-4">
-                  Upload MP4, MOV, or AVI files up to 100MB
-                </p>
-                <label className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 cursor-pointer transition-colors">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Select Video
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-            ) : (
-              <div>
-                <video 
-                  src={previewUrl}
-                  className="w-full max-w-md h-48 object-cover rounded-lg mx-auto mb-4"
-                  controls
-                />
-                <p className="text-gray-900 font-medium">{selectedFile.name}</p>
-                <p className="text-gray-500 text-sm">
-                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedFile(null)
-                    setPreviewUrl('')
-                  }}
-                  className="mt-2 text-primary-600 hover:text-primary-700 text-sm"
+                  onClick={() => setUploadData(prev => ({ ...prev, videoFile: null }))}
+                  className="text-sm text-red-600 hover:text-red-700 font-medium"
                 >
-                  Change video
+                  Remove File
                 </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <FileVideo className="w-16 h-16 text-gray-400 mx-auto" />
+                <div>
+                  <p className="text-lg font-medium text-gray-900">
+                    Drag and drop your video file here
+                  </p>
+                  <p className="text-sm text-gray-600">or click to browse</p>
+                </div>
+                <div className="flex items-center justify-center">
+                  <label className="cursor-pointer bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 transition-colors">
+                    <span>Choose Video File</span>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Video Details */}
+        {/* Video Details Section */}
         <div className="cricket-card p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-            <User className="w-5 h-5 mr-2 text-primary-600" />
-            Video Details
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Video Details</h2>
+            <button
+              type="button"
+              onClick={generateSampleData}
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+            >
+              Generate Sample Data
+            </button>
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -312,156 +228,107 @@ export default function VideoUploadPage() {
               </label>
               <input
                 type="text"
-                name="videoTitle"
-                value={formData.videoTitle}
-                onChange={handleInputChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                value={uploadData.title}
+                onChange={(e) => setUploadData(prev => ({ ...prev, title: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                 placeholder="e.g., Cover Drive Practice Session"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Player Name *
-              </label>
-              <input
-                type="text"
-                name="playerName"
-                value={formData.playerName}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                placeholder="Enter player name"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Match/Session Date *
-              </label>
-              <input
-                type="date"
-                name="matchDate"
-                value={formData.matchDate}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Match Type
+                Shot Type *
               </label>
               <select
-                name="matchType"
-                value={formData.matchType}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                required
+                value={uploadData.shotType}
+                onChange={(e) => setUploadData(prev => ({ ...prev, shotType: e.target.value as ShotType }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
               >
-                <option value="Practice Session">Practice Session</option>
-                <option value="Test Match">Test Match</option>
-                <option value="One Day International">One Day International</option>
-                <option value="T20">T20</option>
-                <option value="Domestic Match">Domestic Match</option>
+                {shotTypes.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
               </select>
             </div>
-            
-            <div className="md:col-span-2">
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Teams/Opposition
+                Match Type *
+              </label>
+              <select
+                required
+                value={uploadData.matchType}
+                onChange={(e) => setUploadData(prev => ({ ...prev, matchType: e.target.value as MatchType }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+              >
+                {matchTypes.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Teams/Opponent
               </label>
               <input
                 type="text"
-                name="teams"
-                value={formData.teams}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                placeholder="e.g., Team A vs Team B or Practice Session"
-              />
-            </div>
-            
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Video Notes
-              </label>
-              <textarea
-                name="videoNotes"
-                value={formData.videoNotes}
-                onChange={handleInputChange}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                placeholder="Add any relevant notes about this video session..."
+                value={uploadData.teams}
+                onChange={(e) => setUploadData(prev => ({ ...prev, teams: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                placeholder="e.g., Mumbai vs Delhi or Practice Session"
               />
             </div>
           </div>
-        </div>
 
-        {/* Analysis Features */}
-        <div className="cricket-card p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">What You'll Get</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="flex items-start space-x-3">
-              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-              <div>
-                <p className="font-medium text-gray-900">Technical Analysis</p>
-                <p className="text-sm text-gray-600">Detailed breakdown of batting technique and form</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-              <div>
-                <p className="font-medium text-gray-900">Performance Metrics</p>
-                <p className="text-sm text-gray-600">Ball speed, bat angle, and trajectory data</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-              <div>
-                <p className="font-medium text-gray-900">Personalized Tips</p>
-                <p className="text-sm text-gray-600">AI-powered recommendations for improvement</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-              <div>
-                <p className="font-medium text-gray-900">Progress Tracking</p>
-                <p className="text-sm text-gray-600">Compare with previous sessions and track improvement</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-              <div>
-                <p className="font-medium text-gray-900">Professional Comparison</p>
-                <p className="text-sm text-gray-600">See how your technique compares to professionals</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-              <div>
-                <p className="font-medium text-gray-900">Detailed Report</p>
-                <p className="text-sm text-gray-600">Comprehensive analysis report for your records</p>
-              </div>
-            </div>
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Additional Notes
+            </label>
+            <textarea
+              value={uploadData.notes}
+              onChange={(e) => setUploadData(prev => ({ ...prev, notes: e.target.value }))}
+              rows={4}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+              placeholder="Any specific focus areas or context for this video analysis..."
+            />
           </div>
         </div>
 
-        {/* Submit Button */}
-        <div className="flex justify-end">
+        {/* Submit Section */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            {uploadStatus === 'success' && (
+              <>
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <span className="text-green-700 font-medium">Upload successful!</span>
+              </>
+            )}
+            {uploadStatus === 'error' && (
+              <>
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <span className="text-red-700 font-medium">Upload failed. Please try again.</span>
+              </>
+            )}
+          </div>
+          
           <button
             type="submit"
-            disabled={!selectedFile || isUploading || isAnalyzing}
-            className="px-8 py-3 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+            disabled={!uploadData.videoFile || uploading}
+            className="flex items-center space-x-2 bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
-            {isUploading || isAnalyzing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+            {uploading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Uploading...</span>
+              </>
             ) : (
-              <Upload className="w-4 h-4" />
+              <>
+                <Upload className="w-5 h-5" />
+                <span>Upload for Analysis</span>
+              </>
             )}
-            <span>
-              {isUploading ? 'Uploading...' : isAnalyzing ? 'Analyzing...' : 'Upload & Analyze'}
-            </span>
           </button>
         </div>
       </form>

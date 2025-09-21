@@ -1,10 +1,12 @@
 // app/videos/[slug]/page.tsx
-import { getMatchVideo, getShotAnalyses } from '@/lib/cosmic'
+import { getMatchVideo } from '@/lib/cosmic'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { format } from 'date-fns'
-import { ArrowLeft, Play, Calendar, Users, Target, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Play, Calendar, Users, Video, FileText } from 'lucide-react'
 import { isPlayerProfile } from '@/types'
+import PerformanceMatrix from '@/components/PerformanceMatrix'
+import ProgressTracker from '@/components/ProgressTracker'
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -23,13 +25,6 @@ export default async function VideoPage({ params }: PageProps) {
     ? player.metadata?.player_name || player.title 
     : 'Unknown Player';
 
-  // Get related shot analyses for this video
-  const allAnalyses = await getShotAnalyses()
-  const relatedAnalyses = allAnalyses.filter(analysis => 
-    typeof analysis.metadata.related_video === 'object' && 
-    analysis.metadata.related_video?.id === video.id
-  )
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <Link 
@@ -41,127 +36,96 @@ export default async function VideoPage({ params }: PageProps) {
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Video Content */}
+        {/* Main Content */}
         <div className="lg:col-span-2">
-          <div className="cricket-card overflow-hidden mb-8">
-            <div className="relative">
+          {/* Video Player */}
+          <div className="cricket-card p-6 mb-8">
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">{video.metadata.video_title}</h1>
+              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                <div className="flex items-center">
+                  <Users className="w-4 h-4 mr-1" />
+                  {playerName}
+                </div>
+                <div className="flex items-center">
+                  <Calendar className="w-4 h-4 mr-1" />
+                  {format(new Date(video.metadata.match_date), 'MMMM d, yyyy')}
+                </div>
+                <span className="px-2 py-1 bg-primary-100 text-primary-800 rounded-full text-xs">
+                  {video.metadata.match_type?.value}
+                </span>
+              </div>
+            </div>
+
+            <div className="relative rounded-lg overflow-hidden bg-gray-100 mb-4">
               <img 
-                src={`${video.metadata.video_file.imgix_url}?w=1000&h=500&fit=crop&auto=format,compress`}
+                src={`${video.metadata.video_file.imgix_url}?w=800&h=450&fit=crop&auto=format,compress`}
                 alt={video.metadata.video_title}
-                className="w-full h-96 object-cover"
+                className="w-full h-64 md:h-96 object-cover"
               />
-              <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                <div className="w-20 h-20 bg-white bg-opacity-90 rounded-full flex items-center justify-center">
+              <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center hover:bg-opacity-30 transition-all cursor-pointer">
+                <div className="w-20 h-20 bg-white bg-opacity-90 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
                   <Play className="w-10 h-10 text-gray-800 ml-1" />
                 </div>
               </div>
             </div>
 
-            <div className="p-6">
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">{video.metadata.video_title}</h1>
-              
-              <div className="flex items-center space-x-6 text-sm text-gray-600 mb-4">
-                <div className="flex items-center">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  {format(new Date(video.metadata.match_date), 'MMMM d, yyyy')}
-                </div>
-                {video.metadata.match_type && (
-                  <div className="flex items-center">
-                    <Users className="w-4 h-4 mr-2" />
-                    {video.metadata.match_type.value}
-                  </div>
-                )}
+            {video.metadata.video_notes && (
+              <div className="mt-4">
+                <h3 className="font-semibold text-gray-900 mb-2">Session Notes:</h3>
+                <p className="text-gray-700 text-sm">{video.metadata.video_notes}</p>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Player</h3>
-                  <p className="text-gray-600">{playerName}</p>
-                </div>
-                {video.metadata.teams && (
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Teams</h3>
-                    <p className="text-gray-600">{video.metadata.teams}</p>
-                  </div>
-                )}
-              </div>
-
-              {video.metadata.video_notes && (
-                <div className="mt-6">
-                  <h3 className="font-semibold text-gray-900 mb-2">Notes</h3>
-                  <p className="text-gray-600">{video.metadata.video_notes}</p>
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Related Shot Analyses */}
-          {relatedAnalyses.length > 0 && (
-            <div className="cricket-card p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                <Target className="w-6 h-6 mr-2 text-primary-600" />
-                Shot Analyses from this Video
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {relatedAnalyses.map((analysis) => (
-                  <Link 
-                    key={analysis.id}
-                    href={`/analyses/${analysis.slug}`}
-                    className="p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors group"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-primary-600">
-                        {analysis.metadata.shot_type?.value || 'Shot Analysis'}
-                      </span>
-                      <div className="flex items-center space-x-1">
-                        <span className="text-lg font-bold text-green-600">{analysis.metadata.analysis_score || 0}</span>
-                        <span className="text-xs text-gray-500">/10</span>
-                      </div>
-                    </div>
-                    
-                    <h3 className="font-medium text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">
-                      {analysis.metadata.shot_name}
-                    </h3>
-                    
-                    <div className="flex items-center justify-between text-sm text-gray-600">
-                      <span>View detailed analysis</span>
-                      <TrendingUp className="w-4 h-4" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Performance Matrix */}
+          <div className="mb-8">
+            <PerformanceMatrix 
+              playerName={playerName}
+              analysisDate={format(new Date(video.metadata.match_date), 'MMMM d, yyyy')}
+            />
+          </div>
+
+          {/* Progress Tracker */}
+          <div className="mb-8">
+            <ProgressTracker playerName={playerName} />
+          </div>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Video Details */}
           <div className="cricket-card p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Video Details</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Video className="w-5 h-5 mr-2 text-primary-600" />
+              Video Details
+            </h3>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">Date:</span>
                 <span className="font-medium">{format(new Date(video.metadata.match_date), 'MMM d, yyyy')}</span>
               </div>
-              {video.metadata.match_type && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Type:</span>
+                <span className="font-medium">{video.metadata.match_type?.value}</span>
+              </div>
+              {video.metadata.teams && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Type:</span>
-                  <span className="font-medium">{video.metadata.match_type.value}</span>
+                  <span className="text-gray-600">Teams:</span>
+                  <span className="font-medium">{video.metadata.teams}</span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-gray-600">Analyses:</span>
-                <span className="font-medium">{relatedAnalyses.length}</span>
+                <span className="text-gray-600">Player:</span>
+                <span className="font-medium">{playerName}</span>
               </div>
             </div>
           </div>
 
-          {/* Player Profile Link */}
+          {/* Player Profile */}
           {isPlayerProfile(player) && (
             <div className="cricket-card p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Featured Player</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Player Profile</h3>
               <Link 
                 href={`/players/${player.slug}`}
                 className="flex items-center space-x-3 hover:bg-gray-50 p-3 rounded-lg transition-colors"
@@ -176,6 +140,11 @@ export default async function VideoPage({ params }: PageProps) {
                 <div>
                   <p className="font-medium text-gray-900">{playerName}</p>
                   <p className="text-sm text-gray-600">{player.metadata.team}</p>
+                  <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                    <span>{player.metadata.playing_role?.value}</span>
+                    <span>•</span>
+                    <span>{player.metadata.batting_style?.value}</span>
+                  </div>
                 </div>
               </Link>
             </div>
@@ -185,18 +154,51 @@ export default async function VideoPage({ params }: PageProps) {
           <div className="cricket-card p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
             <div className="space-y-3">
-              <Link 
-                href="/analyses" 
-                className="w-full btn-primary text-center py-2 rounded-lg"
+              <Link
+                href="/upload"
+                className="flex items-center space-x-3 p-3 rounded-lg bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"
               >
-                View All Analyses
+                <Video className="w-5 h-5" />
+                <span className="font-medium">Upload New Video</span>
               </Link>
-              <Link 
-                href="/videos" 
-                className="w-full btn-secondary text-center py-2 rounded-lg"
+              
+              <Link
+                href="/analyses"
+                className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors"
               >
-                Browse More Videos
+                <FileText className="w-5 h-5" />
+                <span className="font-medium">View All Analyses</span>
               </Link>
+              
+              <Link
+                href="/reports"
+                className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <FileText className="w-5 h-5" />
+                <span className="font-medium">Performance Reports</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Analysis Summary */}
+          <div className="cricket-card p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Session Summary</h3>
+            <div className="space-y-4">
+              <div className="p-3 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">8.5</div>
+                <div className="text-sm text-green-700">Overall Performance</div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-blue-50 rounded-lg text-center">
+                  <div className="font-bold text-blue-600">135</div>
+                  <div className="text-xs text-blue-700">Ball Speed</div>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-lg text-center">
+                  <div className="font-bold text-purple-600">42°</div>
+                  <div className="text-xs text-purple-700">Bat Angle</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

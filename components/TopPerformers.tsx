@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Trophy, ArrowRight } from 'lucide-react'
-import { ShotAnalysis } from '@/types'
+import { ShotAnalysis, isPlayerProfile } from '@/types'
 
 interface TopPerformersProps {
   shotAnalyses: ShotAnalysis[]
@@ -28,7 +28,9 @@ export default function TopPerformers({ shotAnalyses }: TopPerformersProps) {
       <div className="space-y-4">
         {shotAnalyses.map((analysis, index) => {
           const player = analysis.metadata.player;
-          const playerName = player?.metadata?.player_name || player?.title || 'Unknown Player';
+          const playerName = isPlayerProfile(player) 
+            ? player.metadata?.player_name || player.title 
+            : 'Unknown Player';
           const score = analysis.metadata.analysis_score || 0;
           const shotType = analysis.metadata.shot_type?.value || 'Unknown Shot';
           

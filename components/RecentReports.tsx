@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { FileText, ArrowRight } from 'lucide-react'
-import { PerformanceReport } from '@/types'
+import { PerformanceReport, isPlayerProfile } from '@/types'
 
 interface RecentReportsProps {
   reports: PerformanceReport[]
@@ -29,7 +29,9 @@ export default function RecentReports({ reports }: RecentReportsProps) {
       <div className="space-y-4">
         {reports.map((report) => {
           const player = report.metadata.player;
-          const playerName = player?.metadata?.player_name || player?.title || 'Unknown Player';
+          const playerName = isPlayerProfile(player)
+            ? player.metadata?.player_name || player.title
+            : 'Unknown Player';
           
           return (
             <div key={report.id} className="flex items-center space-x-4 p-4 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">

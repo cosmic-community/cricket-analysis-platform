@@ -59,7 +59,7 @@ export interface MatchVideo extends CosmicObject {
       key: string;
       value: 'Test Match' | 'One Day International' | 'T20' | 'Practice Session' | 'Domestic Match';
     };
-    player?: string;
+    player?: string | PlayerProfile;
     video_notes?: string;
   };
 }
@@ -69,8 +69,8 @@ export interface ShotAnalysis extends CosmicObject {
   type: 'shot-analyses';
   metadata: {
     shot_name: string;
-    related_video?: string;
-    player?: string;
+    related_video?: string | MatchVideo;
+    player?: string | PlayerProfile;
     ball_speed?: number;
     spin_rate?: number;
     bat_angle?: number;
@@ -106,11 +106,11 @@ export interface PerformanceReport extends CosmicObject {
   type: 'performance-reports';
   metadata: {
     report_title: string;
-    player?: PlayerProfile;
+    player?: string | PlayerProfile;
     report_date: string;
     analysis_period?: string;
     overall_score?: number;
-    shot_analyses?: ShotAnalysis[];
+    shot_analyses?: (string | ShotAnalysis)[];
     key_insights?: string;
     performance_trends?: {
       batting_average_trend: number[];
@@ -174,3 +174,16 @@ export type ShotType = 'Drive' | 'Cut' | 'Pull' | 'Hook' | 'Sweep' | 'Flick' | '
 export type PlayingRole = 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper';
 export type BattingStyle = 'Right-handed' | 'Left-handed';
 export type MatchType = 'Test Match' | 'One Day International' | 'T20' | 'Practice Session' | 'Domestic Match';
+
+// Helper type guards
+export function isPlayerProfile(player: string | PlayerProfile | undefined): player is PlayerProfile {
+  return typeof player === 'object' && player !== null && 'metadata' in player;
+}
+
+export function isShotAnalysis(analysis: string | ShotAnalysis | undefined): analysis is ShotAnalysis {
+  return typeof analysis === 'object' && analysis !== null && 'metadata' in analysis;
+}
+
+export function isMatchVideo(video: string | MatchVideo | undefined): video is MatchVideo {
+  return typeof video === 'object' && video !== null && 'metadata' in video;
+}
